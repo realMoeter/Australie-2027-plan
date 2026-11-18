@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Australia 2027 – Gantt Chart</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --fg:#1f2328; --muted:#6b7078; --grid:#e6e3dc; --grid2:#f1efe9;
+    --prep:#8a6fb0; --syd:#2e6db4; --obe:#3c8d3f; --data:#c08a1e; --buf:#9aa0a6; --hol:#b5462e;
+    --card:#ffffff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#16181b; --fg:#e8e6e1; --muted:#9a9fa6; --grid:#2c3035; --grid2:#202327; --card:#1c1f23;
+      --prep:#a58ccb; --syd:#5b93d6; --obe:#62ad64; --data:#d8a443; --buf:#7d838a; --hol:#de6f55; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{padding:22px 24px 8px}
+  h1{margin:0 0 4px;font-size:22px}
+  .sub{color:var(--muted)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;padding:10px 24px 14px;color:var(--muted);font-size:13px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:10px;border-radius:3px;display:inline-block}
+  .wrap{overflow-x:auto;padding:0 24px 24px}
+  .chart{min-width:1100px;background:var(--card);border:1px solid var(--grid);border-radius:10px;padding:8px 0}
+  .row{display:grid;grid-template-columns:340px 1fr;align-items:center;min-height:30px}
+  .row.sec{min-height:34px}
+  .label{padding:0 12px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sec .label{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .track{position:relative;height:30px;border-left:1px solid var(--grid)}
+  .sec .track{height:34px}
+  .bar{position:absolute;top:7px;height:16px;border-radius:4px;opacity:.92}
+  .bar:hover{opacity:1;outline:2px solid var(--fg);outline-offset:1px}
+  .ms{position:absolute;top:8px;width:13px;height:13px;transform:translateX(-6.5px) rotate(45deg);border-radius:2px}
+  .vline{position:absolute;top:0;bottom:0;width:0;border-left:1px solid var(--grid2);pointer-events:none}
+  .vline.month{border-left:1px solid var(--grid)}
+  .today{border-left:2px dashed var(--hol)}
+  .hol{position:absolute;top:0;bottom:0;background:var(--hol);opacity:.10;pointer-events:none}
+  .head .track{height:44px}
+  .mlabel{position:absolute;top:2px;font-size:12px;font-weight:600;padding-left:4px}
+  .wlabel{position:absolute;top:24px;font-size:10px;color:var(--muted);transform:translateX(-50%)}
+  .tip{position:fixed;pointer-events:none;background:var(--fg);color:var(--bg);padding:6px 9px;border-radius:6px;font-size:12px;display:none;max-width:320px;z-index:9}
+  .notes{padding:0 24px 30px;color:var(--muted);font-size:13px;max-width:900px}
+  .notes li{margin:3px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Australia 2027 – Timeline</h1>
+  <div class="sub">Preparation from Nov 2026 · Field &amp; lab work 8 Feb – 2 May 2027 · Week 1 = Mon 8 Feb</div>
+</header>
+<div class="legend">
+  <span><i class="sw" style="background:var(--prep)"></i>Preparation (Germany)</span>
+  <span><i class="sw" style="background:var(--syd)"></i>Sydney (lab)</span>
+  <span><i class="sw" style="background:var(--obe)"></i>Oberon (field)</span>
+  <span><i class="sw" style="background:var(--data)"></i>Data / ongoing</span>
+  <span><i class="sw" style="background:var(--buf)"></i>Buffer</span>
+  <span><i class="sw" style="background:var(--hol);opacity:.35"></i>Public holiday</span>
+  <span><i class="sw" style="border-left:2px dashed var(--hol);width:2px;height:12px;border-radius:0"></i>Today</span>
+</div>
+<div class="wrap"><div class="chart" id="chart"></div></div>
+<ul class="notes">
+  <li>Feeding trials: each group is filmed every 2nd day (Day A / Day B), 3 h, 4 cameras × 3 dishes, 2 rounds per day. 9 trials reached on 25/26 Mar (cycle 1) and 29/30 Apr (cycle 2).</li>
+  <li>Daily weighing of all non-filmed groups during filming weeks; baseline weight on Day 0 (8 Mar / 12 Apr).</li>
+  <li>If travelling on an eVisitor (651): max. 3 months per visit (arrival 7 Feb → leave by ~7 May).</li>
+  <li>Hover over a bar for dates and details.</li>
+</ul>
+<div class="tip" id="tip"></div>
+<script>
+const START = new Date(2026,10,16);   // Mon 16 Nov 2026
+const END   = new Date(2027,4,17);    // Mon 17 May 2027
+const now = new Date();
+const TODAY = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const DAY = 86400000;
+const total = (END-START)/DAY;
+const d = s => { const [y,m,dd]=s.split('-').map(Number); return new Date(y,m-1,dd); };
+const pct = dt => ((dt-START)/DAY/total*100);
+
+const C = {prep:'var(--prep)',syd:'var(--syd)',obe:'var(--obe)',data:'var(--data)',buf:'var(--buf)',hol:'var(--hol)'};
+
+const rows = [
+  {sec:'Before departure'},
+  {t:'Hara applications + appointment', s:'2026-11-18', e:'2026-12-13', c:'prep'},
+  {t:'Clarify visa type with host, apply', s:'2026-11-23', e:'2027-01-10', c:'prep', n:'eVisitor 651 vs. Visitor 600 vs. research visa (408); 600 processing up to ~31 days'},
+  {t:'Collection/export permits, sibling-group design', s:'2026-11-23', e:'2027-01-17', c:'prep'},
+  {t:'Test lighting (LED vs ring light), camera settings', s:'2026-11-18', e:'2026-12-20', c:'prep'},
+  {t:'Book flights', s:'2026-11-23', e:'2026-12-13', c:'prep'},
+  {t:'Credit card, health insurance abroad', s:'2026-11-30', e:'2026-12-20', c:'prep'},
+  {t:'Check host equipment, buy/order the rest', s:'2026-12-01', e:'2027-01-24', c:'prep'},
+  {t:'Accommodation Sydney/Oberon, driving permit', s:'2026-12-07', e:'2027-01-24', c:'prep'},
+  {t:'ATA Carnet (IHK)', s:'2027-01-04', e:'2027-01-29', c:'prep', n:'GoPros together > AUD 900 duty-free limit'},
+  {t:'Organise Lucilia supply in Australia', s:'2027-01-11', e:'2027-02-05', c:'prep'},
+  {t:'Data sheets, tracker, app, ellipse prints', s:'2027-01-18', e:'2027-02-05', c:'prep'},
+  {t:'Krisenvorsorgeliste, eSIM, packing', s:'2027-01-25', e:'2027-02-05', c:'prep'},
+  {t:'Flight to Sydney', m:'2027-02-06', c:'prep', n:'Arrival weekend 6/7 Feb'},
+
+  {sec:'Australia – cycle 1'},
+  {t:'W1 Arrival, jet lag, lab + 4 filming stations', s:'2027-02-08', e:'2027-02-14', c:'syd'},
+  {t:'W2 Pilot: attack behaviour, P/S criteria', s:'2027-02-15', e:'2027-02-21', c:'obe'},
+  {t:'W3–4 Collect, classify, assemble 40 groups', s:'2027-02-22', e:'2027-03-07', c:'obe', n:'200 producers + 200 scroungers; single vials'},
+  {t:'Day 0: marking + baseline weight', m:'2027-03-08', c:'syd'},
+  {t:'W5–7 Feeding trials (filming every 2nd day)', s:'2027-03-09', e:'2027-03-26', c:'syd', n:'Day A: 9,11,…,25 Mar · Day B: 10,12,…,26 Mar'},
+  {t:'Daily weighing + mortality', s:'2027-03-09', e:'2027-03-26', c:'data'},
+  {t:'Buffer', s:'2027-03-27', e:'2027-03-28', c:'buf'},
+
+  {sec:'Australia – cycle 2'},
+  {t:'W8–9 Collect, classify, assemble 40 groups', s:'2027-03-29', e:'2027-04-11', c:'obe'},
+  {t:'W8–9 Web-shape experiment (cycle-1 spiders)', s:'2027-03-29', e:'2027-04-11', c:'obe', n:'Ellipse forms, daily photos'},
+  {t:'Day 0: marking + baseline weight', m:'2027-04-12', c:'syd'},
+  {t:'W10–12 Feeding trials (filming every 2nd day)', s:'2027-04-13', e:'2027-04-30', c:'syd', n:'Day A: 13,15,…,29 Apr · Day B: 14,16,…,30 Apr'},
+  {t:'Daily weighing + mortality', s:'2027-04-13', e:'2027-04-30', c:'data'},
+  {t:'Buffer', s:'2027-05-01', e:'2027-05-02', c:'buf'},
+
+  {sec:'Throughout / after'},
+  {t:'Video offload + double backup (daily)', s:'2027-03-09', e:'2027-04-30', c:'data'},
+  {t:'Buffer, wrap-up, then free time', s:'2027-05-03', e:'2027-05-16', c:'buf'},
+  {t:'eVisitor 3-month limit (if used)', m:'2027-05-07', c:'hol'},
+];
+
+const holidays = [
+  ['2026-12-24','2027-01-01','Christmas / New Year (DE)'],
+  ['2027-03-26','2027-03-29','Easter (Good Friday – Easter Monday)'],
+  ['2027-04-25','2027-04-25','ANZAC Day'],
+];
+
+const chart = document.getElementById('chart');
+const tip = document.getElementById('tip');
+const fmt = dt => dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+
+function grid(track){
+  for(let t=new Date(START); t<END; t=new Date(t.getTime()+7*DAY)){
+    const v=document.createElement('div'); v.className='vline'; v.style.left=pct(t)+'%'; track.appendChild(v);
+  }
+  for(let m=new Date(START.getFullYear(),START.getMonth()+1,1); m<END; m=new Date(m.getFullYear(),m.getMonth()+1,1)){
+    const v=document.createElement('div'); v.className='vline month'; v.style.left=pct(m)+'%'; track.appendChild(v);
+  }
+  holidays.forEach(([s,e,n])=>{
+    const h=document.createElement('div'); h.className='hol';
+    h.style.left=pct(d(s))+'%'; h.style.width=Math.max(((d(e)-d(s))/DAY+1)/total*100,0.3)+'%'; track.appendChild(h);
+  });
+  if(TODAY>=START && TODAY<=END){const td=document.createElement('div'); td.className='vline today'; td.style.left=pct(TODAY)+'%'; track.appendChild(td);}
+}
+function hover(el,html){
+  el.addEventListener('mousemove',ev=>{tip.innerHTML=html;tip.style.display='block';
+    tip.style.left=Math.min(ev.clientX+12,innerWidth-330)+'px';tip.style.top=(ev.clientY+14)+'px';});
+  el.addEventListener('mouseleave',()=>tip.style.display='none');
+}
+
+// header row
+(function(){
+  const r=document.createElement('div'); r.className='row head';
+  r.innerHTML='<div class="label"></div>';
+  const tr=document.createElement('div'); tr.className='track'; grid(tr);
+  for(let m=new Date(START); m<END; m=new Date(m.getFullYear(),m.getMonth()+1,1)){
+    const l=document.createElement('div'); l.className='mlabel';
+    l.style.left=pct(m)+'%';
+    l.textContent=m.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}); tr.appendChild(l);
+  }
+  // Australian week numbers W1..W12
+  for(let w=1; w<=12; w++){
+    const mid=new Date(d('2027-02-08').getTime()+((w-1)*7+3.5)*DAY);
+    const l=document.createElement('div'); l.className='wlabel'; l.style.left=pct(mid)+'%'; l.textContent='W'+w; tr.appendChild(l);
+  }
+  r.appendChild(tr); chart.appendChild(r);
+})();
+
+rows.forEach(o=>{
+  const r=document.createElement('div'); r.className='row'+(o.sec?' sec':'');
+  const lab=document.createElement('div'); lab.className='label'; lab.textContent=o.sec||o.t; lab.title=o.sec||o.t;
+  const tr=document.createElement('div'); tr.className='track'; grid(tr);
+  if(o.s){
+    const b=document.createElement('div'); b.className='bar';
+    const s=d(o.s), e=d(o.e);
+    b.style.left=pct(s)+'%'; b.style.width=((e-s)/DAY+1)/total*100+'%'; b.style.background=C[o.c];
+    hover(b,`<b>${o.t}</b><br>${fmt(s)} – ${fmt(e)}${o.n?'<br>'+o.n:''}`);
+    tr.appendChild(b);
+  } else if(o.m){
+    const m=document.createElement('div'); m.className='ms'; m.style.left=pct(d(o.m))+'%'; m.style.background=C[o.c];
+    hover(m,`<b>${o.t}</b><br>${fmt(d(o.m))}${o.n?'<br>'+o.n:''}`);
+    tr.appendChild(m);
+  }
+  r.appendChild(lab); r.appendChild(tr); chart.appendChild(r);
+});
+</script>
+</body>
+</html>
